@@ -1,0 +1,42 @@
+[
+  {
+    "day": 15,
+    "date": "01-15",
+    "airTemp": 25,
+    "waterTemp": 36,
+    "activity": 0.1,
+    "feeding": "none",
+    "ice": 0.8,
+    "algae": 0.0
+  },
+  {
+    "day": 105,
+    "date": "04-15",
+    "airTemp": 52,
+    "waterTemp": 50,
+    "activity": 0.4,
+    "feeding": "light",
+    "ice": 0.0,
+    "algae": 0.2
+  },
+  {
+    "day": 196,
+    "date": "07-15",
+    "airTemp": 75,
+    "waterTemp": 76,
+    "activity": 0.9,
+    "feeding": "regular",
+    "ice": 0.0,
+    "algae": 0.6
+  },
+  {
+    "day": 288,
+    "date": "10-15",
+    "airTemp": 52,
+    "waterTemp": 56,
+    "activity": 0.5,
+    "feeding": "light",
+    "ice": 0.0,
+    "algae": 0.3
+  }
+]
