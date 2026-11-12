@@ -68,14 +68,14 @@ def build_typical_year(clean_data: pd.DataFrame) -> pd.DataFrame:
     return typical_year
 
 
-def estimate_water_temp(typical_year: pd.DataFrame) -> pd.DataFrame:
+def estimate_water_temp(df: pd.DataFrame) -> pd.DataFrame:
     """Estimate daily pond water temperature from air temperature.
 
     Applies exponential smoothing so water lags behind air, runs the
     year twice so January has December’s history, and clamps values
     at the winter floor.
     """
-    year = typical_year.copy()
+    year = df.copy()
     doubled_air = pd.concat([year["air_temp"], year["air_temp"]])
     smoothed = doubled_air.ewm(alpha=WATER_SMOOTHING_ALPHA, adjust=False).mean()
     smoothed = smoothed.clip(lower=WATER_TEMP_FLOOR)
@@ -99,25 +99,25 @@ def plot_air_vs_water_temp(year: pd.DataFrame) -> None:
     plt.close()
 
 
-def add_activity(typical_year: pd.DataFrame) -> pd.DataFrame:
+def add_activity(df: pd.DataFrame) -> pd.DataFrame:
     """Add koi activity (0 to 1) from water temperature.
 
     Activity is 0 at or below the dormant temp, 1 at or above the
     full temp, and rises linearly in between.
     """
-    year = typical_year.copy()
+    year = df.copy()
     temp_range = ACTIVITY_FULL_TEMP - ACTIVITY_DORMANT_TEMP
     year["activity"] = ((year["water_temp"] - ACTIVITY_DORMANT_TEMP) / temp_range).clip(0, 1)
     return year
 
 
-def add_feeding(typical_year: pd.DataFrame) -> pd.DataFrame:
+def add_feeding(df: pd.DataFrame) -> pd.DataFrame:
     """Add the feeding level (none, light, or regular) from water temperature.
 
     No feeding below the stop temp, light feeding up to the regular
     temp, and regular feeding at or above it.
     """
-    year = typical_year.copy()
+    year = df.copy()
     conditions = [
         year["water_temp"] < FEEDING_STOP_TEMP,
         year["water_temp"] < FEEDING_REGULAR_TEMP,
@@ -130,13 +130,13 @@ def add_feeding(typical_year: pd.DataFrame) -> pd.DataFrame:
     return year
 
 
-def add_ice(typical_year: pd.DataFrame) -> pd.DataFrame:
+def add_ice(df: pd.DataFrame) -> pd.DataFrame:
     """Add ice cover (0 to 1) from recent air temperatures.
 
     Ice is the fraction of the last several days with air at or
     below freezing, so a full week of freezing days gives full cover.
     """
-    year = typical_year.copy()
+    year = df.copy()
     doubled_air = pd.concat([year["air_temp"], year["air_temp"]])
     freezing_days = doubled_air <= FREEZING_TEMP
     ice_cover = freezing_days.rolling(ICE_WINDOW_DAYS).mean()
@@ -144,13 +144,13 @@ def add_ice(typical_year: pd.DataFrame) -> pd.DataFrame:
     return year
 
 
-def add_algae(typical_year: pd.DataFrame) -> pd.DataFrame:
+def add_algae(df: pd.DataFrame) -> pd.DataFrame:
     """Add algae level (0 to 1) from water temperature.
 
     Algae is 0 at or below the start temp, 1 at or above the peak
     temp, and rises linearly in between.
     """
-    year = typical_year.copy()
+    year = df.copy()
     temp_range = ALGAE_PEAK_TEMP - ALGAE_START_TEMP
     year["algae"] = ((year["water_temp"] - ALGAE_START_TEMP) / temp_range).clip(0, 1)
     return year
