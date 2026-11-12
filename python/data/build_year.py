@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -10,8 +11,17 @@ CLEAN_DATA_PATH = ROOT / "data" / "processed" / "clean_data.csv"
 WATER_TEMP_PLOT_PATH = ROOT / "docs" / "plot_air_vs_water.png"
 POND_YEAR_PATH = ROOT / "data" / "processed" / "pond_year.json"
 
+# Placeholder behavior constants
 WATER_SMOOTHING_ALPHA = 0.1  # daily fraction the pond moves toward air temp; 0.1 ≈ 10-day lag
-WATER_TEMP_FLOOR = 35.0  # Lowest water temp (°F) where koi overwinter; ice insulates the water below.
+WATER_TEMP_FLOOR = 35.0  # lowest water temp (°F) where koi overwinter; ice insulates the water below.
+ACTIVITY_DORMANT_TEMP = 45  # water temp where activity is 0
+ACTIVITY_FULL_TEMP = 72  # water temp where activity reaches 1
+FEEDING_STOP_TEMP = 50  # below this water temp, koi aren’t fed
+FEEDING_REGULAR_TEMP = 60  # light feeding below this, regular feeding at or above
+FREEZING_TEMP = 32  # air temp at or below which a day counts as freezing
+ICE_WINDOW_DAYS = 7  # number of recent days used to estimate ice cover
+ALGAE_START_TEMP = 60  # water temp where algae starts to appear
+ALGAE_PEAK_TEMP = 78  # water temp where algae reaches full strength
 
 
 def main() -> None:
@@ -20,6 +30,10 @@ def main() -> None:
     df = build_typical_year(df)
     df = estimate_water_temp(df)
     plot_air_vs_water_temp(df)
+    df = add_activity(df)
+    df = add_feeding(df)
+    df = add_ice(df)
+    df = add_algae(df)
 
 
 def load_clean_data() -> pd.DataFrame:
@@ -69,7 +83,7 @@ def plot_air_vs_water_temp(year: pd.DataFrame) -> None:
     plt.plot(year["day"], year["air_temp"], label="Air Temp", color="orange")
     plt.plot(year["day"], year["water_temp"], label="Water Temp", color="blue")
     plt.axhline(WATER_TEMP_FLOOR, color="red", linestyle="--", linewidth=1.5, label="Water Temp Floor")
-    plt.title("Typical Year: Air vs. Estimated Pond Temperature.")
+    plt.title("Typical Year: Air vs. Estimated Pond Temperature")
     plt.xlabel("Month")
     plt.ylabel("Temperature in °F")
     plt.xticks(ticks=[1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335],
@@ -79,10 +93,63 @@ def plot_air_vs_water_temp(year: pd.DataFrame) -> None:
     plt.close()
 
 
-# def add_activity():
-# def add_feeding():
-# def add_ice():
-# def add_algae():
+def add_activity(typical_year: pd.DataFrame) -> pd.DataFrame:
+    """Add koi activity (0 to 1) from water temperature.
+
+    Activity is 0 at or below the dormant temp, 1 at or above the
+    full temp, and rises linearly in between.
+    """
+    year = typical_year.copy()
+    temp_range = ACTIVITY_FULL_TEMP - ACTIVITY_DORMANT_TEMP
+    year["activity"] = ((year["water_temp"] - ACTIVITY_DORMANT_TEMP) / temp_range).clip(0, 1)
+    return year
+
+
+def add_feeding(typical_year: pd.DataFrame) -> pd.DataFrame:
+    """Add the feeding level (none, light, or regular) from water temperature.
+
+    No feeding below the stop temp, light feeding up to the regular
+    temp, and regular feeding at or above it.
+    """
+    year = typical_year.copy()
+    conditions = [
+        year["water_temp"] < FEEDING_STOP_TEMP,
+        year["water_temp"] < FEEDING_REGULAR_TEMP,
+    ]
+    outputs = [
+        "none",
+        "light",
+    ]
+    year["feeding"] = np.select(conditions, outputs, default="regular")
+    return year
+
+
+def add_ice(typical_year: pd.DataFrame) -> pd.DataFrame:
+    """Add ice cover (0 to 1) from recent air temperatures.
+
+    Ice is the fraction of the last several days with air at or
+    below freezing, so a full week of freezing days gives full cover.
+    """
+    year = typical_year.copy()
+    doubled_air = pd.concat([year["air_temp"], year["air_temp"]])
+    freezing_days = doubled_air <= FREEZING_TEMP
+    ice_cover = freezing_days.rolling(ICE_WINDOW_DAYS).mean()
+    year["ice"] = ice_cover.iloc[-len(year):].to_numpy()
+    return year
+
+
+def add_algae(typical_year: pd.DataFrame) -> pd.DataFrame:
+    """Add algae level (0 to 1) from water temperature.
+
+    Algae is 0 at or below the start temp, 1 at or above the peak
+    temp, and rises linearly in between.
+    """
+    year = typical_year.copy()
+    temp_range = ALGAE_PEAK_TEMP - ALGAE_START_TEMP
+    year["algae"] = ((year["water_temp"] - ALGAE_START_TEMP) / temp_range).clip(0, 1)
+    return year
+
+
 # def to_contract(df: pd.DataFrame) -> pd.DataFrame:
 # def validate(df: pd.DataFrame) -> None:
 # def save_json(df: pd.DataFrame) -> None:
