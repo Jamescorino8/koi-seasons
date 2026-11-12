@@ -86,10 +86,16 @@ def estimate_water_temp(df: pd.DataFrame) -> pd.DataFrame:
 
 def plot_air_vs_water_temp(year: pd.DataFrame) -> None:
     """Plot air vs. estimated water temperature and save it to docs."""
+    y_min = year["air_temp"].min() - 5
+    y_max = year["air_temp"].max() + 5
+    plt.axhspan(y_min, FEEDING_STOP_TEMP, color="gray", alpha=0.15, label="No Feeding")
+    plt.axhspan(FEEDING_STOP_TEMP, FEEDING_REGULAR_TEMP, color="gold", alpha=0.15, label="Light Feeding")
+    plt.axhspan(FEEDING_REGULAR_TEMP, y_max, color="green", alpha=0.15, label="Regular Feeding")
+    plt.ylim(y_min, y_max)
     plt.plot(year["day"], year["air_temp"], label="Air Temp", color="orange")
     plt.plot(year["day"], year["water_temp"], label="Water Temp", color="blue")
     plt.axhline(WATER_TEMP_FLOOR, color="red", linestyle="--", linewidth=1.5, label="Water Temp Floor")
-    plt.title("Typical Year: Air vs. Estimated Pond Temperature")
+    plt.title("Typical Year: Pond Temperature and Feeding Zones")
     plt.xlabel("Month")
     plt.ylabel("Temperature in °F")
     plt.xticks(ticks=[1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335],
