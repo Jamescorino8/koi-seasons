@@ -11,9 +11,9 @@ CLEAN_DATA_PATH = ROOT / "data" / "processed" / "clean_data.csv"
 WATER_TEMP_PLOT_PATH = ROOT / "docs" / "plot_air_vs_water.png"
 POND_YEAR_PATH = ROOT / "data" / "processed" / "pond_year.json"
 
-# Placeholder behavior constants
 WATER_SMOOTHING_ALPHA = 0.1  # daily fraction the pond moves toward air temp; 0.1 ≈ 10-day lag
 WATER_TEMP_FLOOR = 35.0  # lowest water temp (°F) where koi overwinter; ice insulates the water below.
+# Placeholder behavior constants
 ACTIVITY_DORMANT_TEMP = 45  # water temp where activity is 0
 ACTIVITY_FULL_TEMP = 72  # water temp where activity reaches 1
 FEEDING_STOP_TEMP = 50  # below this water temp, koi aren’t fed
@@ -22,6 +22,9 @@ FREEZING_TEMP = 32  # air temp at or below which a day counts as freezing
 ICE_WINDOW_DAYS = 7  # number of recent days used to estimate ice cover
 ALGAE_START_TEMP = 60  # water temp where algae starts to appear
 ALGAE_PEAK_TEMP = 78  # water temp where algae reaches full strength
+
+CONTRACT_FIELDS = ["day", "date", "airTemp", "waterTemp", "activity", "feeding", "ice", "algae"]
+ZERO_TO_ONE_FIELDS = ["activity", "ice", "algae"]
 
 
 def main() -> None:
@@ -34,6 +37,9 @@ def main() -> None:
     df = add_feeding(df)
     df = add_ice(df)
     df = add_algae(df)
+    df = to_contract(df)
+    validate(df)
+    save_json(df)
 
 
 def load_clean_data() -> pd.DataFrame:
@@ -150,9 +156,46 @@ def add_algae(typical_year: pd.DataFrame) -> pd.DataFrame:
     return year
 
 
-# def to_contract(df: pd.DataFrame) -> pd.DataFrame:
-# def validate(df: pd.DataFrame) -> None:
-# def save_json(df: pd.DataFrame) -> None:
+def to_contract(df: pd.DataFrame) -> pd.DataFrame:
+    """Shape the year to match the data contract.
+
+    Renames columns to camelCase, keeps only the contract fields in
+    order, and rounds temperatures and 0-1 values.
+    """
+    year = df.copy()
+    year = year.rename(columns={"air_temp": "airTemp", "water_temp": "waterTemp"})
+    year = year[CONTRACT_FIELDS]
+    year["waterTemp"] = year["waterTemp"].round(1)
+    year["airTemp"] = year["airTemp"].round(1)
+    for field in ZERO_TO_ONE_FIELDS:
+        year[field] = year[field].round(2)
+
+    return year
+
+
+def validate(df: pd.DataFrame) -> None:
+    """Check that the pond year follows the data contract.
+
+    Rules: 365 rows, days 1 to 365 with no gaps or repeats, no missing
+    values, 0 to 1 fields in range, and only allowed feeding values.
+
+    Raises AssertionError if any rule fails.
+    """
+    assert len(df) == 365, "expected 365 rows"
+    assert df.notna().all().all(), "missing data"
+    assert df["day"].min() == 1, "expected day 1"
+    assert df["day"].max() == 365, "expected day 365"
+    assert not df["day"].duplicated().any(), "duplicate days present"
+    for field in ZERO_TO_ONE_FIELDS:
+        assert df[field].between(0, 1).all(), f"{field} expected value between 0 and 1"
+    assert df["feeding"].isin(["none", "light", "regular"]).all(), "unexpected feeding value"
+    assert df.columns.tolist() == CONTRACT_FIELDS, "columns do not match contract"
+
+
+def save_json(df: pd.DataFrame) -> None:
+    """Write the pond year to JSON as a list of daily records."""
+    df.to_json(POND_YEAR_PATH, orient="records", indent=2)
+
 
 if __name__ == "__main__":
     main()
